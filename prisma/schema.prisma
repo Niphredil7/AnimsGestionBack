@@ -1,0 +1,354 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model School {
+  id String @id @default(uuid())
+  name String @db.VarChar(100)
+  address String @unique()
+  zipCode Int 
+  city String @db.VarChar(100)
+  type SchoolType @default(PRIMAIRE)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+
+  users User[]
+
+  children Child[]
+}
+
+enum SchoolType {
+  PRIMAIRE
+  MATERNELLE
+  PRIMAIRE_MATERNELLE
+}
+
+enum UserStatus {
+NOT_CONFIRMED
+CONFIRMED
+DEACTIVATED
+BANNED
+}
+
+enum UserRole {
+  COORDO
+  ANIMATOR
+  VISITOR
+  PARENT
+  ANIMATOR_PARENT
+}
+
+enum TokenType {
+  REFRESH_TOKEN
+  ACTIVATE_ACCOUNT
+  RESET_PASSWORD
+}
+
+model Token {
+  token String @db.Text //refresh notamment
+  type TokenType
+  userId String
+  user User @relation(fields:[userId],references:[id])
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  expiresAt      DateTime?  
+
+  @@id([type,userId]) // index plus performant // associat° des deux uniques
+}
+
+model User {
+  id String @id @default(uuid())
+  username String @db.VarChar(100)
+  email String @unique
+  password String @db.VarChar(100)
+  schoolId String?
+  school School? @relation(fields:[schoolId], references: [id])
+  firstname String? @db.VarChar(100)
+  lastname String? @db.VarChar(100)
+  address String? @db.VarChar(100)
+  zipCode Int? 
+  city String @db.VarChar(100)
+  phone String? @db.VarChar(20)
+  available String? @db.VarChar(200)
+  content String? @db.VarChar(200)
+  cv String? @db.Text
+  visibility Visible @default(NO)
+  status UserStatus @default(NOT_CONFIRMED)
+  role UserRole @default(VISITOR)
+  picture String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  activities Activity[]
+
+  feedbacks Feedback[]
+
+  classes Class[]
+
+  children Child[]
+
+  happennings Happenning[]
+
+  notifications UserHasNotification[]
+
+  tokens Token[]
+
+  outings Outing[]
+}
+
+enum Visible {
+  ALL
+  NO
+  PROFIL
+  CV
+}
+
+model Activity {
+  id String @id @default(uuid())
+  name String @db.VarChar(100)
+  content String? @db.VarChar(300)
+  favorite Favorite @default(IsNotFavorite)
+  userId String 
+  userCreator User @relation(fields:[userId], references: [id])
+  roomId String
+  room Room @relation(fields:[roomId], references:[id])
+  categoryMaterialId String?
+  categoryMaterial CategoryMaterial? @relation(fields:[categoryMaterialId], references:[id])
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  plannings PlanningActivity[]
+
+}
+
+model Outing {
+  id String @id @default(uuid())
+  name String @db.VarChar(100)
+  content String? @db.VarChar(300)
+  localisation String @db.VarChar(200)
+  favorite Favorite @default(IsNotFavorite)
+  userId String 
+  userCreator User @relation(fields:[userId], references: [id])
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+
+  plannings PlanningActivity[]
+
+}
+
+enum Favorite {
+  IsNotFavorite
+  IsFavorite
+}
+
+model Room {
+  id String @id @default(uuid())
+  name String @db.VarChar(100)
+  activity Activity[]
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model Planning {
+  id String @id @default(uuid())
+  dateStart DateTime @db.Date()
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  planningActivities PlanningActivity[]
+}
+
+model PlanningActivity {
+  id String @id @default(uuid())
+  moment EMoment
+  validatedAt DateTime?
+  activityId String?
+  activity Activity? @relation(fields:[activityId], references:[id])
+  outingId String?
+  outing Outing? @relation(fields:[outingId], references:[id])
+  planningId String?
+  planning Planning? @relation(fields:[planningId], references:[id])
+  classId String
+  classe Class @relation(fields:[classId], references:[id])
+  day Int
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  feedbacks Feedback[]
+  Notification Notification[]
+  @@unique([planningId, activityId, outingId, classId, moment, day])
+  
+  // @@check((activityId IS NOT NULL AND outingId IS NULL) OR (activityId IS NULL AND outingId IS NOT NULL))
+
+//   ALTER TABLE PlanningActivity 
+// ADD CONSTRAINT activity_xor_outing_check 
+// CHECK (
+//   (activityId IS NOT NULL AND outingId IS NULL) OR 
+//   (activityId IS NULL AND outingId IS NOT NULL)
+// );
+
+  
+}
+
+ enum EMoment {
+  MORNING
+  NOON
+  EVENING
+ }
+
+model Material {
+  id String @id @default(uuid())
+  name String @db.VarChar(100)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  categories CategoryMaterial[]
+}
+
+model CategoryMaterial {
+  id String @id @default(uuid())
+  name String @db.VarChar(100)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  materials Material[]
+  activities Activity[]
+}
+
+// model CategoryHasMaterial {
+//   categoryMaterialId String
+//   materialId String
+//   categoryMaterial CategoryMaterial @relation(fields:[categoryMaterialId], references:[id])
+//   material Material @relation(fields:[materialId], references:[id])
+
+//   @@id([materialId, categoryMaterialId])
+
+// }
+
+model Feedback {
+  status Favorite @default(IsFavorite)
+  userId String
+  user User @relation(fields:[userId], references:[id])
+  planningId String
+  planning PlanningActivity @relation(fields:[planningId], references:[id])
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+    @@id([planningId, userId])
+
+}
+
+model Child {
+  id String @id @default(uuid())
+  schoolId String
+  school School @relation(fields:[schoolId], references: [id])
+  firstName String @db.VarChar(100)
+  lastName String @db.VarChar(100)
+  sexe GenreChild
+  classId String
+  class Class @relation(fields:[classId], references:[id])
+  parentId String?
+  parent User? @relation(fields:[parentId], references:[id])
+  allergen Boolean @default(false)
+  regime Regime @default(NONE)
+  activityForbiden ActivityForbidenn @default(NONE)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+enum GenreChild {
+  F
+  M
+}
+
+enum Regime {
+  NONE
+  NOPORK
+  VEGETARIAN
+  PREPARED
+}
+
+enum ActivityForbidenn {
+  NONE
+  ESCALATION
+  POOL
+}
+
+model Class {
+  id String @id @default(uuid()) 
+  name String @db.VarChar(100)
+  userId String?
+  userAnimator User? @relation(fields:[userId], references:[id])
+
+  children Child[]
+
+  planningsActivities PlanningActivity[]
+}
+
+// model ClassHasPlanning {
+//   classId String
+//   class Class @relation(fields:[classId], references:[id])
+//   planningId String
+//   planning Planning @relation(fields:[planningId], references:[id])
+
+//   @@id([planningId, classId])
+// }
+
+model Happenning {
+  id String @id @default(uuid())
+  title String @db.VarChar(100)
+  content String @db.Text
+  dateStart DateTime
+  dateEnd DateTime
+  type HappenningType @default(REUNION)
+  creatorId String
+  creator User @relation(fields:[creatorId], references:[id])
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  notifications Notification[]
+}
+
+enum HappenningType {
+  RDV
+  REUNION
+}
+
+model Notification {
+  id String @id @default(uuid())
+  type NotificationType
+  message String @db.VarChar(200)
+  planningActivityId String?
+  planningActivity PlanningActivity? @relation(fields:[planningActivityId], references:[id])
+  happenningId String?
+  happenning Happenning? @relation(fields:[happenningId], references:[id])
+  createdAt DateTime  @default(now())
+
+  users UserHasNotification[]
+
+}
+
+model UserHasNotification {
+  notificationId String
+  notification Notification @relation(fields:[notificationId], references:[id])
+  userId String
+  userSent User @relation(fields:[userId], references:[id])
+  seen Boolean
+
+  @@id([notificationId, userId])
+}
+
+enum NotificationType {
+  HAPPENNING
+  ACTIVITY
+}
